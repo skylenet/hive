@@ -95,3 +95,93 @@ func (p Params) Copy() Params {
 	}
 	return cpy
 }
+
+// WithOverlaySnapshot configures an overlay filesystem mount for the client.
+// The snapshot at snapshotPath (on the host) is mounted as a read-only lower layer,
+// with an ephemeral writable upper layer. The overlay appears at containerPath
+// inside the container. Changes are discarded when the container stops.
+//
+// This is useful for fast client startup with pre-synced chain data.
+// Note: This feature requires Linux and root/sudo privileges.
+func WithOverlaySnapshot(snapshotPath, containerPath string) StartOption {
+	return optionFunc(func(setup *clientSetup) {
+		setup.config.Overlays = append(setup.config.Overlays, simapi.OverlaySpec{
+			SnapshotPath:  snapshotPath,
+			ContainerPath: containerPath,
+		})
+	})
+}
+
+// WithRemoteSnapshot configures a remote snapshot to be fetched by the hive host.
+// The snapshot is downloaded and cached on the host, then mounted as an overlay.
+//
+// Parameters:
+//   - network: Ethereum network (e.g., "mainnet", "sepolia", "holesky", "hoodi")
+//   - client: Execution client name (e.g., "geth", "nethermind", "besu", "reth")
+//   - containerPath: Where the snapshot appears inside the container (e.g., "/data")
+//
+// Note: This feature requires Linux and root/sudo privileges on the hive host.
+func WithRemoteSnapshot(network, client, containerPath string) StartOption {
+	return optionFunc(func(setup *clientSetup) {
+		setup.config.Overlays = append(setup.config.Overlays, simapi.OverlaySpec{
+			Network:       network,
+			Client:        client,
+			ContainerPath: containerPath,
+		})
+	})
+}
+
+// WithRemoteSnapshotAt is like WithRemoteSnapshot but fetches a specific block number.
+func WithRemoteSnapshotAt(network, client, blockNumber, containerPath string) StartOption {
+	return optionFunc(func(setup *clientSetup) {
+		setup.config.Overlays = append(setup.config.Overlays, simapi.OverlaySpec{
+			Network:       network,
+			Client:        client,
+			BlockNumber:   blockNumber,
+			ContainerPath: containerPath,
+		})
+	})
+}
+
+// WithRemoteSnapshotURL configures a remote snapshot from a custom URL.
+func WithRemoteSnapshotURL(network, client, baseURL, containerPath string) StartOption {
+	return optionFunc(func(setup *clientSetup) {
+		setup.config.Overlays = append(setup.config.Overlays, simapi.OverlaySpec{
+			Network:       network,
+			Client:        client,
+			URL:           baseURL,
+			ContainerPath: containerPath,
+		})
+	})
+}
+
+// WithClientSnapshot creates a StartOption from a ClientDefinition's snapshot config.
+// This is the simplest way to use a snapshot configured in the client-config.yaml file.
+// Returns nil if the client has no snapshot configured.
+//
+// Example usage:
+//
+//	snapshotOpt := hivesim.WithClientSnapshot(clientDef)
+//	opts := []hivesim.StartOption{params}
+//	if snapshotOpt != nil {
+//	    opts = append(opts, snapshotOpt)
+//	}
+//	client := t.StartClient(clientDef.Name, opts...)
+func WithClientSnapshot(client *ClientDefinition) StartOption {
+	if !client.HasSnapshot() {
+		return nil
+	}
+
+	snap := client.Snapshot
+	containerPath := snap.SnapshotContainerPath()
+
+	return optionFunc(func(setup *clientSetup) {
+		setup.config.Overlays = append(setup.config.Overlays, simapi.OverlaySpec{
+			Network:       snap.Network,
+			Client:        client.Name, // Host will map the name
+			BlockNumber:   snap.BlockNumber,
+			URL:           snap.URL,
+			ContainerPath: containerPath,
+		})
+	})
+}

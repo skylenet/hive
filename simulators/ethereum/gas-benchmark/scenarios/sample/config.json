@@ -1,0 +1,11 @@
+{
+  "name": "sample",
+  "description": "Sample benchmark scenario for testing",
+  "genesis_path": "genesis.json",
+  "benchmark_path": "benchmark.json",
+  "config": {
+    "warmup_enabled": true,
+    "warmup_iterations": 3,
+    "timeout_seconds": 300
+  }
+}

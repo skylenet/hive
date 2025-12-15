@@ -75,6 +75,10 @@ type ContainerOptions struct {
 
 	// Name: Docker container name (optional)
 	Name string
+
+	// BindMounts specifies host directories to bind mount into the container.
+	// Each entry has format "hostPath:containerPath" or "hostPath:containerPath:ro".
+	BindMounts []string
 }
 
 // ContainerInfo is returned by StartContainer.

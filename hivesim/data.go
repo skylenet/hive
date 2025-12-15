@@ -37,12 +37,47 @@ type ClientMetadata struct {
 
 // ClientDefinition is served by the /clients API endpoint to list the available clients
 type ClientDefinition struct {
-	Name    string         `json:"name"`
-	Version string         `json:"version"`
-	Meta    ClientMetadata `json:"meta"`
+	Name     string                `json:"name"`
+	Version  string                `json:"version"`
+	Meta     ClientMetadata        `json:"meta"`
+	Snapshot *ClientSnapshotConfig `json:"snapshot,omitempty"`
 }
 
 // HasRole reports whether the client has the given role.
 func (m *ClientDefinition) HasRole(role string) bool {
 	return slices.Contains(m.Meta.Roles, role)
+}
+
+// ClientSnapshotConfig specifies snapshot configuration for a client.
+// When present, simulators can use this to auto-mount pre-synced data.
+type ClientSnapshotConfig struct {
+	// Network is the Ethereum network (e.g., "mainnet", "sepolia", "holesky", "hoodi").
+	Network string `json:"network"`
+
+	// URL is a custom snapshot URL (optional, overrides ethpandaops default).
+	URL string `json:"url,omitempty"`
+
+	// BlockNumber is a specific block number. Defaults to "latest".
+	BlockNumber string `json:"block,omitempty"`
+
+	// ContainerPath is where the snapshot appears inside the container.
+	// Defaults to "/data".
+	ContainerPath string `json:"path,omitempty"`
+
+	// CacheDir overrides the default snapshot cache directory.
+	CacheDir string `json:"cache_dir,omitempty"`
+}
+
+// HasSnapshot returns true if this client has a snapshot configured.
+func (c *ClientDefinition) HasSnapshot() bool {
+	return c.Snapshot != nil && c.Snapshot.Network != ""
+}
+
+// SnapshotContainerPath returns the container path for the snapshot,
+// defaulting to "/data" if not specified.
+func (c *ClientSnapshotConfig) SnapshotContainerPath() string {
+	if c.ContainerPath != "" {
+		return c.ContainerPath
+	}
+	return "/data"
 }

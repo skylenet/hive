@@ -185,10 +185,11 @@ type HiveInstance struct {
 
 // ClientDefinition is served by the /clients API endpoint to list the available clients
 type ClientDefinition struct {
-	Name    string         `json:"name"`
-	Version string         `json:"version"`
-	Image   string         `json:"-"` // not exposed via API
-	Meta    ClientMetadata `json:"meta"`
+	Name     string          `json:"name"`
+	Version  string          `json:"version"`
+	Image    string          `json:"-"` // not exposed via API
+	Meta     ClientMetadata  `json:"meta"`
+	Snapshot *SnapshotConfig `json:"snapshot,omitempty"`
 }
 
 // ExecInfo is the result of running a script in a client container.
