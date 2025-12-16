@@ -196,6 +196,31 @@ type ClientDesignator struct {
 
 	// Arguments passed to the docker build.
 	BuildArgs map[string]string `yaml:"build_args,omitempty" json:"build_args,omitempty"`
+
+	// Snapshot configures a pre-synced data snapshot for this client.
+	// When set, the snapshot is fetched (if not cached) and mounted as an overlay.
+	Snapshot *SnapshotConfig `yaml:"snapshot,omitempty" json:"snapshot,omitempty"`
+}
+
+// SnapshotConfig specifies snapshot configuration for a client.
+type SnapshotConfig struct {
+	// Network is the Ethereum network (e.g., "mainnet", "sepolia", "holesky", "hoodi").
+	// Used to fetch from ethpandaops snapshots.
+	Network string `yaml:"network" json:"network"`
+
+	// URL is a custom snapshot URL. If set, overrides the default ethpandaops URL.
+	// The URL should point to a .tar.zst archive.
+	URL string `yaml:"url,omitempty" json:"url,omitempty"`
+
+	// BlockNumber is a specific block number to fetch. Defaults to "latest".
+	BlockNumber string `yaml:"block,omitempty" json:"block,omitempty"`
+
+	// ContainerPath is where the snapshot appears inside the container.
+	// Defaults to "/data".
+	ContainerPath string `yaml:"path,omitempty" json:"path,omitempty"`
+
+	// CacheDir overrides the default snapshot cache directory.
+	CacheDir string `yaml:"cache_dir,omitempty" json:"cache_dir,omitempty"`
 }
 
 func (c ClientDesignator) buildString() string {

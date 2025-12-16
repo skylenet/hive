@@ -15,7 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/hive/internal/overlay"
 	"github.com/ethereum/hive/internal/simapi"
+	"github.com/ethereum/hive/internal/snapshot"
 	"github.com/gorilla/mux"
 )
 
@@ -271,6 +273,87 @@ func (api *simAPI) startClient(w http.ResponseWriter, r *http.Request) {
 	// so it can only be set after creating the container.
 	logPath, logFilePath := api.clientLogFilePaths(clientDef.Name, containerID)
 	options.LogFile = logFilePath
+
+	// Process overlay mounts if requested.
+	if len(clientConfig.Overlays) > 0 {
+		overlayMgr := api.tm.OverlayManager()
+		if overlayMgr == nil {
+			slog.Error("API: overlay requested but overlay manager unavailable", "client", clientDef.Name)
+			api.backend.DeleteContainer(containerID)
+			serveError(w, errors.New("overlay filesystem not supported on this platform"), http.StatusInternalServerError)
+			return
+		}
+
+		// Create snapshot fetcher for remote snapshots.
+		// Use a background context since snapshot downloads can take hours for large files.
+		// The snapshot is cached and reused, so this is typically a one-time operation.
+		snapshotFetcher := snapshot.NewFetcher(slog.Default())
+		snapshotCtx := context.Background()
+
+		for _, spec := range clientConfig.Overlays {
+			snapshotPath := spec.SnapshotPath
+
+			// If no local path specified, fetch remote snapshot
+			if snapshotPath == "" && spec.Network != "" {
+				// Determine client name for snapshot
+				snapshotClient := spec.Client
+				if snapshotClient == "" {
+					snapshotClient = clientDef.Name
+				}
+
+				slog.Info("API: fetching remote snapshot",
+					"network", spec.Network,
+					"client", snapshotClient,
+					"block", spec.BlockNumber)
+
+				var err error
+				snapshotPath, err = snapshotFetcher.EnsureSnapshot(snapshotCtx, snapshot.Config{
+					Network:     spec.Network,
+					Client:      snapshotClient,
+					BlockNumber: spec.BlockNumber,
+					BaseURL:     spec.URL,
+				})
+				if err != nil {
+					slog.Error("API: failed to fetch remote snapshot",
+						"client", clientDef.Name,
+						"network", spec.Network,
+						"error", err)
+					api.backend.DeleteContainer(containerID)
+					serveError(w, fmt.Errorf("snapshot fetch failed: %v", err), http.StatusInternalServerError)
+					return
+				}
+			}
+
+			if snapshotPath == "" {
+				slog.Error("API: overlay spec has no snapshot path or network", "client", clientDef.Name)
+				api.backend.DeleteContainer(containerID)
+				serveError(w, errors.New("overlay spec must have snapshotPath or network"), http.StatusBadRequest)
+				return
+			}
+
+			mount, err := overlayMgr.CreateOverlay(containerID, overlay.Config{
+				SnapshotPath:       snapshotPath,
+				ContainerMountPath: spec.ContainerPath,
+			})
+			if err != nil {
+				slog.Error("API: failed to create overlay mount",
+					"client", clientDef.Name,
+					"snapshot", snapshotPath,
+					"error", err)
+				// Cleanup any overlays already created for this container.
+				overlayMgr.CleanupOverlay(containerID)
+				api.backend.DeleteContainer(containerID)
+				serveError(w, fmt.Errorf("overlay mount failed: %v", err), http.StatusInternalServerError)
+				return
+			}
+			// Add bind mount: merged overlay directory -> container path.
+			options.BindMounts = append(options.BindMounts, fmt.Sprintf("%s:%s", mount.MergedDir, spec.ContainerPath))
+			slog.Info("API: overlay mount created",
+				"client", clientDef.Name,
+				"snapshot", snapshotPath,
+				"containerPath", spec.ContainerPath)
+		}
+	}
 
 	// Connect to the networks if requested, so it is started already joined to each one.
 	for _, network := range networks {

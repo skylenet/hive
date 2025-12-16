@@ -72,10 +72,11 @@ func (r *Runner) buildClients(ctx context.Context, clientList []ClientDesignator
 			slog.Warn("can't read version info of "+client.Client, "image", image, "err", err)
 		}
 		r.clientDefs = append(r.clientDefs, &ClientDefinition{
-			Name:    client.Name(),
-			Version: strings.TrimSpace(string(version)),
-			Image:   image,
-			Meta:    r.inv.Clients[client.Client].Meta,
+			Name:     client.Name(),
+			Version:  strings.TrimSpace(string(version)),
+			Image:    image,
+			Meta:     r.inv.Clients[client.Client].Meta,
+			Snapshot: client.Snapshot,
 		})
 	}
 	if !anyBuilt {
@@ -317,14 +318,14 @@ func createWorkspace(logdir string) error {
 
 func writeInstanceInfo(logdir string) {
 	var obj HiveInstance
-	
+
 	// Legacy fields for backward compatibility
 	obj.SourceCommit, obj.SourceDate = hiveVersion()
 	buildDate := hiveBuildTime()
 	if !buildDate.IsZero() {
 		obj.BuildDate = buildDate.Format("2006-01-02T15:04:05Z")
 	}
-	
+
 	// Enhanced version information
 	obj.HiveVersion = GetHiveVersion()
 
@@ -360,5 +361,3 @@ func hiveBuildTime() time.Time {
 	}
 	return stat.ModTime()
 }
-
-

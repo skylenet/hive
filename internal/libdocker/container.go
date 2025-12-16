@@ -93,6 +93,15 @@ func (b *ContainerBackend) CreateContainer(ctx context.Context, imageName string
 	for key, val := range opt.Env {
 		vars = append(vars, key+"="+val)
 	}
+
+	// Build HostConfig with bind mounts if specified.
+	var hostConfig *docker.HostConfig
+	if len(opt.BindMounts) > 0 {
+		hostConfig = &docker.HostConfig{
+			Binds: opt.BindMounts,
+		}
+	}
+
 	createOpts := docker.CreateContainerOptions{
 		Context: ctx,
 		Name:    opt.Name,
@@ -101,6 +110,7 @@ func (b *ContainerBackend) CreateContainer(ctx context.Context, imageName string
 			Env:    vars,
 			Labels: opt.Labels,
 		},
+		HostConfig: hostConfig,
 	}
 
 	if opt.Input != nil {
